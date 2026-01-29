@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignJS — Инструмент ЭЦП</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <h2>Подпись файла (CAdES-BES Detached)</h2>
+    
+    <div class="field-group">
+        <label for="certList">1. Выберите сертификат:</label>
+        <select id="certList">
+            <option value="">Ожидание плагина...</option>
+        </select>
+    </div>
+
+    <div class="field-group">
+        <label for="fileInput">2. Выберите файл для подписи:</label>
+        <input type="file" id="fileInput">
+    </div>
+
+    <div class="actions">
+        <button id="signBtn" class="btn-primary">ПОДПИСАТЬ</button>
+        <button id="downloadBtn" class="btn-secondary" disabled>СКАЧАТЬ .SIG</button>
+    </div>
+
+    <div id="status" class="status info">Инициализация...</div>
+
+    <label for="result">Результат подписи (Base64):</label>
+    <textarea id="result" readonly></textarea>
+</div>
+
+<script src="cadesplugin_api.js"></script>
+<script src="SignJsApp.js"></script>
+</body>
+</html>
