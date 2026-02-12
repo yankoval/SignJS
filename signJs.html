@@ -22,7 +22,13 @@
         <label for="fileInput">2. Выберите файл для подписи:</label>
         <input type="file" id="fileInput">
     </div>
-
+<div class="field-group checkbox-group">
+    <label>
+        <input type="checkbox" id="isDetached" checked> 
+        Отсоединенная подпись (Detached)
+    </label>
+    <small>Если снято — будет создана встроенная подпись вместе с файлом внутри.</small>
+</div>
     <div class="actions">
         <button id="signBtn" class="btn-primary">ПОДПИСАТЬ</button>
         <button id="downloadBtn" class="btn-secondary" disabled>СКАЧАТЬ .SIG</button>

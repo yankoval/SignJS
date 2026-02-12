@@ -1,11 +1,12 @@
 /**
- * SignJsApp.js
- * Логика взаимодействия с КриптоПро ЭЦП Browser Plug-in
+ * SignJsApp.js 
+ * Добавлена поддержка выбора типа подписи (Detached/Attached)
  */
 
 const elements = {
     certList: document.getElementById('certList'),
     fileInput: document.getElementById('fileInput'),
+    isDetached: document.getElementById('isDetached'), // Наш новый чекбокс
     signBtn: document.getElementById('signBtn'),
     downloadBtn: document.getElementById('downloadBtn'),
     status: document.getElementById('status'),
@@ -28,22 +29,20 @@ function arrayBufferToBase64(buffer) {
 
 window.onload = () => {
     if (typeof cadesplugin === 'undefined') {
-        log("Ошибка: Библиотека cadesplugin_api.js не загружена", "error");
+        log("Ошибка: Библиотека cadesplugin_api.js не найдена", "error");
         return;
     }
-    
     cadesplugin.then(() => {
         log("Плагин готов к работе");
         loadCertificates();
     }, (err) => {
-        log("Ошибка: Плагин не найден. Проверьте установку расширения.", "error");
+        log("Ошибка: Плагин или расширение не активны", "error");
     });
 };
 
 async function loadCertificates() {
     try {
         const oStore = await cadesplugin.CreateObjectAsync("CAdESCOM.Store");
-        // Проверка обоих хранилищ (Машина и Пользователь)
         try { await oStore.Open(2, "My", 0); } 
         catch (e) { await oStore.Open(1, "My", 0); }
 
@@ -52,7 +51,7 @@ async function loadCertificates() {
         
         elements.certList.innerHTML = '';
         if (count === 0) {
-            log("Сертификаты не найдены. Установите их через КриптоПро CSP.", "error");
+            log("Сертификаты не найдены", "error");
             return;
         }
 
@@ -73,6 +72,7 @@ async function loadCertificates() {
 async function signData() {
     const file = elements.fileInput.files[0];
     const thumbprint = elements.certList.value;
+    const isDetached = elements.isDetached.checked; // Получаем состояние чекбокса
 
     if (!file) return log("Файл не выбран", "error");
     if (!thumbprint) return log("Сертификат не выбран", "error");
@@ -82,7 +82,7 @@ async function signData() {
 
     reader.onload = async (e) => {
         try {
-            log("Подписывание...");
+            log(`Подписывание (${isDetached ? 'отсоединенная' : 'встроенная'})...`);
             const base64Data = arrayBufferToBase64(e.target.result);
 
             const oStore = await cadesplugin.CreateObjectAsync("CAdESCOM.Store");
@@ -99,8 +99,8 @@ async function signData() {
             await oSignedData.propset_ContentEncoding(1); // CADESCOM_BASE64_IN_RAW_CONTENT
             await oSignedData.propset_Content(base64Data);
 
-            // Detached = true
-            const signature = await oSignedData.SignCades(oSigner, 1, true);
+            // ВТОРОЙ ПАРАМЕТР: true для отсоединенной, false для встроенной
+            const signature = await oSignedData.SignCades(oSigner, 1, isDetached);
 
             elements.result.value = signature.replace(/\s+/g, '');
             elements.downloadBtn.disabled = false;
