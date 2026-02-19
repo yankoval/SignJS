@@ -2,43 +2,48 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SignJS — Инструмент ЭЦП</title>
+    <title>SignJS Pro — Автоматизация по ИНН</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
 <div class="container">
-    <h2>Подпись файла (CAdES-BES Detached)</h2>
+    <h2>1. Настройки соответствия ИНН</h2>
+    <div class="settings-actions">
+        <button onclick="exportSettings()" class="btn-secondary">Экспорт JSON</button>
+        <input type="file" id="importFile" style="display:none" onchange="importSettings(this)">
+        <button onclick="document.getElementById('importFile').click()" class="btn-secondary">Импорт JSON</button>
+    </div>
     
-    <div class="field-group">
-        <label for="certList">1. Выберите сертификат:</label>
-        <select id="certList">
-            <option value="">Ожидание плагина...</option>
-        </select>
-    </div>
-
-    <div class="field-group">
-        <label for="fileInput">2. Выберите файл для подписи:</label>
-        <input type="file" id="fileInput">
-    </div>
-<div class="field-group checkbox-group">
-    <label>
-        <input type="checkbox" id="isDetached" checked> 
-        Отсоединенная подпись (Detached)
-    </label>
-    <small>Если снято — будет создана встроенная подпись вместе с файлом внутри.</small>
+    <table id="innTable">
+        <thead>
+            <tr>
+                <th>ИНН</th>
+                <th>Сертификат (Thumbprint)</th>
+                <th>Действие</th>
+            </tr>
+        </thead>
+        <tbody id="innTableBody"></tbody>
+    </table>
 </div>
+
+<div id="wizardContainer" class="container wizard-section" style="display:none;">
+    <h2 style="color: #f4b400;">🪄 Мастер настройки ИНН</h2>
+    <p>Обнаружены файлы с новыми ИНН. Выберите сертификат для каждого:</p>
+    <div id="wizardList"></div>
+</div>
+
+<div class="container auto-section">
+    <h2>2. Мониторинг папки</h2>
     <div class="actions">
-        <button id="signBtn" class="btn-primary">ПОДПИСАТЬ</button>
-        <button id="downloadBtn" class="btn-secondary" disabled>СКАЧАТЬ .SIG</button>
+        <button id="startAutoBtn" class="btn-primary" style="background: #f4b400;">ВКЛЮЧИТЬ МОНИТОРИНГ</button>
+        <button id="stopAutoBtn" class="btn-secondary" disabled>ОСТАНОВИТЬ</button>
     </div>
-
-    <div id="status" class="status info">Инициализация...</div>
-
-    <label for="result">Результат подписи (Base64):</label>
-    <textarea id="result" readonly></textarea>
+    <div id="autoStatus" class="status">Авто-режим выключен</div>
+    <ul id="processedFiles" class="log-list"></ul>
 </div>
+
+<select id="certList" style="display:none"></select>
 
 <script src="cadesplugin_api.js"></script>
 <script src="SignJsApp.js"></script>
