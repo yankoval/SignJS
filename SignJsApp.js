@@ -121,8 +121,31 @@ function applyWizard(inn) {
 
 async function checkFolder() {
     try {
+        const entries = [];
+        const fileNames = new Set();
+
+        // Первый проход: собираем все файлы
         for await (const entry of directoryHandle.values()) {
-            if (entry.kind !== 'file' || processedFiles.has(entry.name) || entry.name.endsWith('.sig')) continue;
+            if (entry.kind === 'file') {
+                entries.push(entry);
+                fileNames.add(entry.name);
+            }
+        }
+
+        // Второй проход: анализируем собранные данные
+        for (const entry of entries) {
+            if (entry.name.endsWith('.sig')) continue;
+
+            const sigName = `${entry.name}.sig`;
+            if (fileNames.has(sigName)) {
+                // Если подпись уже есть, удаляем из временного списка игнорирования,
+                // чтобы при удалении .sig файл снова был подхвачен
+                processedFiles.delete(entry.name);
+                continue;
+            }
+
+            // Если файла .sig нет, проверяем не в игноре ли он (ошибка или ожидание ИНН)
+            if (processedFiles.has(entry.name)) continue;
 
             const innMatch = entry.name.match(/^(\d{10,12})_/);
             if (!innMatch) continue;
@@ -131,13 +154,10 @@ async function checkFolder() {
             const thumbprint = innMap[inn];
 
             if (!thumbprint) {
-                // Если ИНН не настроен, выводим в лог ТОЛЬКО ОДИН РАЗ
                 if (!document.getElementById(`wizard-${inn}`)) {
                     showWizard(inn);
                     addAutoLog(`Файл ${entry.name} пропущен: ИНН ${inn} не настроен`, "error");
                 }
-                // Помечаем файл как "увиденный", но так как мы чистим этот список 
-                // в applyWizard, после настройки он снова пойдет в работу
                 processedFiles.add(entry.name); 
                 continue;
             }
@@ -152,6 +172,10 @@ async function checkFolder() {
         }
     } catch (e) {
         console.warn("Ошибка при чтении папки", e);
+    } finally {
+        if (autoInterval) {
+            autoInterval = setTimeout(checkFolder, CONFIG.interval);
+        }
     }
 }
 async function autoSignProcess(entry, thumbprint, isDetached) {
@@ -167,9 +191,12 @@ async function autoSignProcess(entry, thumbprint, isDetached) {
         await writable.write(signature);
         await writable.close();
 
-        processedFiles.add(entry.name);
         addAutoLog(`ПОДПИСАНО (${isDetached ? 'Det' : 'Att'}): ${entry.name}`);
-    } catch (e) { addAutoLog(`Ошибка подписи ${entry.name}: ${e}`, "error"); }
+        // Мы НЕ добавляем в processedFiles при успехе, так как теперь ориентируемся на наличие .sig
+    } catch (e) {
+        addAutoLog(`Ошибка подписи ${entry.name}: ${e}`, "error");
+        processedFiles.add(entry.name); // Добавляем в игнор при ошибке, чтобы не спамить
+    }
 }
 
 // --- ЯДРО И ПЛАГИН ---
@@ -236,12 +263,16 @@ async function startMonitoring() {
         elements.stopAutoBtn.disabled = false;
         elements.autoStatus.className = "status success";
         elements.autoStatus.textContent = "Мониторинг активен";
-        autoInterval = setInterval(checkFolder, CONFIG.interval);
+
+        // Используем флаг для управления циклом вместо setInterval
+        autoInterval = true;
+        checkFolder();
     } catch (err) { console.error(err); }
 }
 
 function stopMonitoring() {
-    clearInterval(autoInterval);
+    clearTimeout(autoInterval);
+    autoInterval = null;
     elements.startAutoBtn.disabled = false;
     elements.stopAutoBtn.disabled = true;
     elements.autoStatus.className = "status info";
