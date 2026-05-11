@@ -1,5 +1,6 @@
 let elements = {};
-let autoInterval = null;
+let isMonitoring = false;
+let autoTimeoutId = null;
 let skippedKeys = new Set(); // To avoid log spam for files waiting for INN mapping
 let innMap = JSON.parse(localStorage.getItem('innMap')) || {};
 let cloudSettings = {
@@ -131,7 +132,7 @@ function applyWizard(inn) {
 // --- CLOUD MONITORING ---
 
 async function pollQueue() {
-    if (!autoInterval) return;
+    if (!isMonitoring) return;
 
     if (!cloudSettings.apiUrl) {
         addAutoLog("Ошибка: Не настроен Gateway URL", "error");
@@ -150,7 +151,7 @@ async function pollQueue() {
                 action: "ReceiveMessage",
                 params: {
                     MaxNumberOfMessages: CONFIG.maxMessages,
-                    WaitTimeSeconds: 0,
+                    WaitTimeSeconds: 20,
                     AttributeNames: ['All']
                 }
             })
@@ -171,8 +172,8 @@ async function pollQueue() {
     } catch (e) {
         addAutoLog(`Ошибка при опросе очереди: ${e.message}`, "error");
     } finally {
-        if (autoInterval) {
-            autoInterval = setTimeout(pollQueue, CONFIG.interval);
+        if (isMonitoring) {
+            autoTimeoutId = setTimeout(pollQueue, CONFIG.interval);
         }
     }
 }
@@ -336,11 +337,7 @@ function arrayBufferToBase64(buffer) {
 }
 
 function stringToUint8Array(str) {
-    const arr = new Uint8Array(str.length);
-    for (let i = 0; i < str.length; i++) {
-        arr[i] = str.charCodeAt(i);
-    }
-    return arr;
+    return new TextEncoder().encode(str);
 }
 
 function addAutoLog(text, type = "info") {
@@ -361,13 +358,16 @@ function startMonitoring() {
     elements.autoStatus.className = "status success";
     elements.autoStatus.textContent = "Мониторинг облака активен";
 
-    autoInterval = true;
+    isMonitoring = true;
     pollQueue();
 }
 
 function stopMonitoring() {
-    clearTimeout(autoInterval);
-    autoInterval = null;
+    isMonitoring = false;
+    if (autoTimeoutId) {
+        clearTimeout(autoTimeoutId);
+        autoTimeoutId = null;
+    }
     elements.startAutoBtn.disabled = false;
     elements.stopAutoBtn.disabled = true;
     elements.autoStatus.className = "status info";
