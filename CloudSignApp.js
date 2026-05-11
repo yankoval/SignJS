@@ -151,15 +151,24 @@ async function pollQueue() {
                 action: "ReceiveMessage",
                 params: {
                     MaxNumberOfMessages: CONFIG.maxMessages,
-                    WaitTimeSeconds: 20,
-                    AttributeNames: ['All']
+                    WaitTimeSeconds: 0
                 }
             })
         });
 
         if (!response.ok) {
-            const errData = await response.json().catch(() => ({}));
-            throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+            let errorDetail = "";
+            try {
+                const errData = await response.json();
+                errorDetail = errData.error || JSON.stringify(errData);
+            } catch (e) {
+                try {
+                    errorDetail = await response.text();
+                } catch (e2) {
+                    errorDetail = `Status: ${response.status}`;
+                }
+            }
+            throw new Error(`Server Error (${response.status}): ${errorDetail.substring(0, 200)}`);
         }
 
         const data = await response.json();
@@ -193,7 +202,8 @@ async function processCloudMessage(msg) {
     }
 
     const sigKey = s3Links.sigKey;
-    const innMatch = sigKey.match(/^(\d{10,12})_/);
+    const filename = sigKey.split('/').pop();
+    const innMatch = filename.match(/^(\d{10,12})_/);
 
     if (!innMatch) {
         if (!skippedKeys.has(sigKey)) {
