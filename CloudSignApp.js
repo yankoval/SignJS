@@ -2,14 +2,17 @@ let elements = {};
 let autoInterval = null;
 let skippedKeys = new Set(); // To avoid log spam for files waiting for INN mapping
 let innMap = JSON.parse(localStorage.getItem('innMap')) || {};
-let cloudSettings = JSON.parse(localStorage.getItem('cloudSettings')) || { apiUrl: '', apiKey: '' };
+let cloudSettings = {
+    apiUrl: localStorage.getItem('ymq_gw_url') || '',
+    apiKey: localStorage.getItem('ymq_api_key') || ''
+};
 let certCache = [];
 
 const CONFIG = {
     attached: /\.txt$/,
     detached: /\.json$/,
     interval: 2000,
-    maxMessages: 10
+    maxMessages: 5
 };
 
 window.addEventListener('load', () => {
@@ -40,7 +43,8 @@ window.addEventListener('load', () => {
 function saveApiSettings() {
     cloudSettings.apiUrl = elements.apiUrl.value.trim();
     cloudSettings.apiKey = elements.apiKey.value.trim();
-    localStorage.setItem('cloudSettings', JSON.stringify(cloudSettings));
+    localStorage.setItem('ymq_gw_url', cloudSettings.apiUrl);
+    localStorage.setItem('ymq_api_key', cloudSettings.apiKey);
     addAutoLog("Настройки API сохранены");
 }
 
@@ -129,8 +133,8 @@ function applyWizard(inn) {
 async function pollQueue() {
     if (!autoInterval) return;
 
-    if (!cloudSettings.apiUrl || !cloudSettings.apiKey) {
-        addAutoLog("Ошибка: Не настроен URL или API Key", "error");
+    if (!cloudSettings.apiUrl) {
+        addAutoLog("Ошибка: Не настроен Gateway URL", "error");
         stopMonitoring();
         return;
     }
@@ -146,12 +150,16 @@ async function pollQueue() {
                 action: "ReceiveMessage",
                 params: {
                     MaxNumberOfMessages: CONFIG.maxMessages,
-                    WaitTimeSeconds: 10
+                    WaitTimeSeconds: 0,
+                    AttributeNames: ['All']
                 }
             })
         });
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+        }
 
         const data = await response.json();
         const messages = data.Messages || [];
@@ -178,9 +186,9 @@ async function processCloudMessage(msg) {
         return;
     }
 
-    const s3Links = body.S3Links;
+    const s3Links = msg.S3Links || body.S3Links;
     if (!s3Links) {
-        return; // Пропускаем сообщения без S3Links (например, Celery служебные)
+        return;
     }
 
     const sigKey = s3Links.sigKey;
@@ -224,7 +232,7 @@ async function processCloudMessage(msg) {
             headers: {
                 'Content-Type': 'application/octet-stream'
             },
-            body: new TextEncoder().encode(signature)
+            body: stringToUint8Array(signature)
         });
 
         if (!uploadRes.ok) throw new Error(`Ошибка загрузки: ${uploadRes.status}`);
@@ -327,6 +335,14 @@ function arrayBufferToBase64(buffer) {
     return window.btoa(binary);
 }
 
+function stringToUint8Array(str) {
+    const arr = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) {
+        arr[i] = str.charCodeAt(i);
+    }
+    return arr;
+}
+
 function addAutoLog(text, type = "info") {
     const li = document.createElement('li');
     li.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
@@ -336,8 +352,8 @@ function addAutoLog(text, type = "info") {
 }
 
 function startMonitoring() {
-    if (!cloudSettings.apiUrl || !cloudSettings.apiKey) {
-        alert("Настройте API Gateway URL и API Key");
+    if (!cloudSettings.apiUrl) {
+        alert("Настройте API Gateway URL");
         return;
     }
     elements.startAutoBtn.disabled = true;
