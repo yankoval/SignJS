@@ -13,6 +13,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .status { padding: 10px; border-radius: 5px; margin-top: 10px; font-size: 14px; font-weight: bold; }
 .info { background: #e8f0fe; color: #1967d2; }
 .success { background: #e6ffed; color: #1e8e3e; }
+.warning { background: #fffde7; color: #f4b400; }
 .error { background: #fce8e6; color: #d93025; }
 .auto-section { border-top: 4px solid #f4b400; }
 .settings-actions { margin-bottom: 15px; display: flex; gap: 10px; }
