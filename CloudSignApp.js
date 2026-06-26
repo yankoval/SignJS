@@ -37,6 +37,7 @@ window.addEventListener('load', () => {
 
     renderSettingsTable();
     initPlugin();
+    addAutoLog("Приложение запущено. Версия: 1.0.2 (Fix 404/403)");
 });
 
 // --- SETTINGS ---
@@ -233,7 +234,17 @@ async function processCloudMessage(msg) {
 
     try {
         const downloadRes = await fetch(s3Links.downloadUrl);
-        if (!downloadRes.ok) throw new Error(`Ошибка скачивания: ${downloadRes.status}`);
+        if (!downloadRes.ok) {
+            const status = parseInt(downloadRes.status);
+            // S3 returns 404 or 403 if the file is missing (depending on bucket permissions)
+            if (status === 404 || status === 403) {
+                addAutoLog(`WARNING: Ошибка обработки ${sigKey}: Ошибка скачивания: ${status}`, "warning");
+                await deleteCloudMessage(msg.ReceiptHandle);
+                skippedKeys.delete(sigKey);
+                return;
+            }
+            throw new Error(`Ошибка скачивания: ${status}`);
+        }
         const content = await downloadRes.arrayBuffer();
 
         const signature = await coreSign(content, thumbprint, isDetached);
@@ -354,6 +365,7 @@ function addAutoLog(text, type = "info") {
     const li = document.createElement('li');
     li.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
     if(type === "error") li.style.color = "red";
+    else if(type === "warning") li.style.color = "orange";
     elements.logList.prepend(li);
     console.log(text);
 }
