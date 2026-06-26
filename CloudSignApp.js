@@ -234,8 +234,9 @@ async function processCloudMessage(msg) {
     try {
         const downloadRes = await fetch(s3Links.downloadUrl);
         if (!downloadRes.ok) {
-            if (downloadRes.status === 404) {
-                addAutoLog(`Warning: Ошибка обработки ${sigKey}: Ошибка скачивания: 404`, "warning");
+            // S3 returns 404 or 403 if the file is missing (depending on bucket permissions)
+            if (downloadRes.status == 404 || downloadRes.status == 403) {
+                addAutoLog(`Warning: Ошибка обработки ${sigKey}: Ошибка скачивания: ${downloadRes.status}`, "warning");
                 await deleteCloudMessage(msg.ReceiptHandle);
                 skippedKeys.delete(sigKey);
                 return;
