@@ -7,6 +7,17 @@
 </head>
 <body>
 
+<button id="productionWidget" class="production-widget" type="button" aria-expanded="false" aria-controls="fullInterface" title="Мониторинг выключен">
+    <span class="production-widget-ring" aria-hidden="true"></span>
+    <svg class="production-widget-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 2.75h7l4 4V20a1.25 1.25 0 0 1-1.25 1.25h-9.5A1.25 1.25 0 0 1 6 20V4A1.25 1.25 0 0 1 7.25 2.75Z"></path>
+        <path d="M14 2.75V7h4"></path>
+        <path class="production-widget-signature" d="m8.5 15 2.1 2.1 4.9-5"></path>
+    </svg>
+    <span id="productionStatusText" class="visually-hidden">Мониторинг выключен</span>
+</button>
+
+<main id="fullInterface">
 <div class="container">
     <h2>1. Настройки API Yandex Cloud</h2>
     <div class="field-group">
@@ -53,12 +64,14 @@
         <button id="stopAutoBtn" class="btn-secondary" disabled>ОСТАНОВИТЬ</button>
     </div>
     <div id="autoStatus" class="status">Авто-режим выключен</div>
+    <button id="compactModeBtn" class="btn-secondary compact-mode-button" type="button">СВЕРНУТЬ В ПРОМЫШЛЕННЫЙ РЕЖИМ</button>
     <ul id="processedFiles" class="log-list"></ul>
 </div>
 
 <select id="certList" style="display:none"></select>
+</main>
 
 <script src="cadesplugin_api.js"></script>
-<script src="CloudSignApp.js?v=1.1.0"></script>
+<script src="CloudSignApp.js?v=1.2.0"></script>
 </body>
 </html>
