@@ -224,6 +224,7 @@ test('production interface has a collapse control and signing-themed artwork', (
     assert.match(html, /production-widget-hand/);
     assert.match(html, /production-widget-quill/);
     assert.match(html, /production-widget-feather/);
+    assert.match(html, /style\.css\?v=1\.2\.1/);
     assert.match(html, /CloudSignApp\.js\?v=1\.2\.1/);
 });
 
