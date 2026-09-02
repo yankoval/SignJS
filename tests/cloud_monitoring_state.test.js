@@ -5,6 +5,7 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'CloudSignApp.js'), 'utf8');
+const html = fs.readFileSync(path.join(__dirname, '..', 'cloud-sign.html'), 'utf8');
 
 function createStorage(initial = {}) {
     const values = new Map(Object.entries(initial));
@@ -215,6 +216,15 @@ test('embedded mode starts compact and expands when the indicator is clicked', (
     app.elements.compactModeBtn.click();
     assert.equal(app.bodyClasses.has('production-compact'), true);
     assert.equal(app.elements.productionWidget.attributes['aria-expanded'], 'false');
+});
+
+test('production interface has a collapse control and signing-themed artwork', () => {
+    assert.match(html, /aria-label="Свернуть в промышленный режим"/);
+    assert.match(html, /<span>Свернуть<\/span>/);
+    assert.match(html, /production-widget-hand/);
+    assert.match(html, /production-widget-quill/);
+    assert.match(html, /production-widget-feather/);
+    assert.match(html, /CloudSignApp\.js\?v=1\.2\.1/);
 });
 
 test('indicator animates while receiving and signing a message', async () => {

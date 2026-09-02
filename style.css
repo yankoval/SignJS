@@ -25,7 +25,9 @@ th { background-color: #f8f9fa; }
 .log-list { font-size: 12px; color: #666; max-height: 150px; overflow-y: auto; text-align: left; padding-left: 20px; border-top: 1px solid #eee; margin-top: 10px; }
 .wizard-section { border: 2px dashed #f4b400; }
 
-.compact-mode-button { width: 100%; margin-top: 10px; }
+.production-mode-toolbar { display: flex; justify-content: flex-end; max-width: 700px; margin: 0 auto 10px; }
+.compact-mode-button { display: inline-flex; align-items: center; gap: 6px; width: auto; padding: 8px 13px; border-radius: 18px; font-size: 12px; }
+.compact-mode-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .production-widget {
     --widget-color: #9aa0a6;
     position: relative;
@@ -47,14 +49,19 @@ th { background-color: #f8f9fa; }
 .production-widget[data-status="error"] { --widget-color: #d93025; }
 .production-widget:focus-visible { outline: 3px solid #8ab4f8; outline-offset: 3px; }
 .production-widget-icon {
-    width: 30px;
-    height: 30px;
+    width: 38px;
+    height: 38px;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.8;
+    stroke-width: 2.5;
     stroke-linecap: round;
     stroke-linejoin: round;
 }
+.production-widget-paper { fill: rgba(255, 255, 255, 0.14); }
+.production-widget-feather { fill: rgba(255, 255, 255, 0.3); }
+.production-widget-copy { stroke-width: 2; opacity: 0.75; }
+.production-widget-hand { fill: rgba(255, 255, 255, 0.32); }
+.production-widget-quill { transform-box: fill-box; transform-origin: 20% 85%; }
 .production-widget-ring {
     position: absolute;
     inset: -5px;
@@ -66,8 +73,8 @@ th { background-color: #f8f9fa; }
 .production-widget[data-activity="receiving"] .production-widget-ring {
     animation: signjs-receiving 1.1s ease-out infinite;
 }
-.production-widget[data-activity="signing"] .production-widget-icon {
-    animation: signjs-signing 0.7s ease-in-out infinite alternate;
+.production-widget[data-activity="signing"] .production-widget-quill {
+    animation: signjs-quill 0.65s ease-in-out infinite alternate;
 }
 .production-widget[data-activity="signing"] .production-widget-signature {
     stroke-dasharray: 10;
@@ -101,9 +108,9 @@ body.production-compact .production-widget { display: inline-flex; }
     100% { transform: scale(1.2); opacity: 0; }
 }
 
-@keyframes signjs-signing {
-    from { transform: scale(0.92); }
-    to { transform: scale(1.08); }
+@keyframes signjs-quill {
+    from { transform: rotate(-4deg) translate(-1px, 1px); }
+    to { transform: rotate(5deg) translate(2px, -1px); }
 }
 
 @keyframes signjs-signature {
@@ -113,6 +120,6 @@ body.production-compact .production-widget { display: inline-flex; }
 
 @media (prefers-reduced-motion: reduce) {
     .production-widget-ring,
-    .production-widget-icon,
+    .production-widget-quill,
     .production-widget-signature { animation: none !important; }
 }
