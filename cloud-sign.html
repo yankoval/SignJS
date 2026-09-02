@@ -9,15 +9,27 @@
 
 <button id="productionWidget" class="production-widget" type="button" aria-expanded="false" aria-controls="fullInterface" title="Мониторинг выключен">
     <span class="production-widget-ring" aria-hidden="true"></span>
-    <svg class="production-widget-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M7 2.75h7l4 4V20a1.25 1.25 0 0 1-1.25 1.25h-9.5A1.25 1.25 0 0 1 6 20V4A1.25 1.25 0 0 1 7.25 2.75Z"></path>
-        <path d="M14 2.75V7h4"></path>
-        <path class="production-widget-signature" d="m8.5 15 2.1 2.1 4.9-5"></path>
+    <svg class="production-widget-icon" viewBox="0 0 64 64" aria-hidden="true">
+        <path class="production-widget-paper" d="M10 7h31l8 8v40H10Z"></path>
+        <path class="production-widget-paper-fold" d="M41 7v9h8"></path>
+        <path class="production-widget-copy" d="M18 24h18M18 31h14"></path>
+        <path class="production-widget-signature" d="M17 43c5-7 7 5 12-2 3-4 4 5 10 0"></path>
+        <g class="production-widget-quill">
+            <path class="production-widget-feather" d="M55 6C43 7 33 14 27 29c5-4 10-5 15-5-4 2-7 5-10 9 8-3 15-11 23-27Z"></path>
+            <path d="M52 9 28 39"></path>
+        </g>
+        <path class="production-widget-hand" d="M8 51c5-5 10-6 15-3l5-4c2-2 5 1 3 3l-4 4h9c4 0 6 2 8 5H8Z"></path>
     </svg>
     <span id="productionStatusText" class="visually-hidden">Мониторинг выключен</span>
 </button>
 
 <main id="fullInterface">
+<div class="production-mode-toolbar">
+    <button id="compactModeBtn" class="btn-secondary compact-mode-button" type="button" aria-label="Свернуть в промышленный режим">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 8 5 5 5-5"></path></svg>
+        <span>Свернуть</span>
+    </button>
+</div>
 <div class="container">
     <h2>1. Настройки API Yandex Cloud</h2>
     <div class="field-group">
@@ -64,7 +76,6 @@
         <button id="stopAutoBtn" class="btn-secondary" disabled>ОСТАНОВИТЬ</button>
     </div>
     <div id="autoStatus" class="status">Авто-режим выключен</div>
-    <button id="compactModeBtn" class="btn-secondary compact-mode-button" type="button">СВЕРНУТЬ В ПРОМЫШЛЕННЫЙ РЕЖИМ</button>
     <ul id="processedFiles" class="log-list"></ul>
 </div>
 
@@ -72,6 +83,6 @@
 </main>
 
 <script src="cadesplugin_api.js"></script>
-<script src="CloudSignApp.js?v=1.2.0"></script>
+<script src="CloudSignApp.js?v=1.2.1"></script>
 </body>
 </html>

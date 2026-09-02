@@ -49,7 +49,7 @@ window.addEventListener('load', () => {
         setCompactMode(true);
     }
     initPlugin();
-    addAutoLog("Приложение запущено. Версия: 1.2.0");
+    addAutoLog("Приложение запущено. Версия: 1.2.1");
     restoreMonitoringState();
 });
 
