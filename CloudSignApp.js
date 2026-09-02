@@ -10,6 +10,7 @@ let cloudSettings = {
 let certCache = [];
 
 const MONITORING_STATE_KEY = 'signjs_cloud_monitoring_enabled';
+const EMBEDDED_LAYOUT_MESSAGE = 'signjs:layout';
 
 const CONFIG = {
     attached: /\.txt$/,
@@ -28,7 +29,10 @@ window.addEventListener('load', () => {
         startAutoBtn: document.getElementById('startAutoBtn'),
         stopAutoBtn: document.getElementById('stopAutoBtn'),
         autoStatus: document.getElementById('autoStatus'),
-        logList: document.getElementById('processedFiles')
+        logList: document.getElementById('processedFiles'),
+        productionWidget: document.getElementById('productionWidget'),
+        productionStatusText: document.getElementById('productionStatusText'),
+        compactModeBtn: document.getElementById('compactModeBtn')
     };
 
     elements.apiUrl.value = cloudSettings.apiUrl;
@@ -36,10 +40,16 @@ window.addEventListener('load', () => {
 
     elements.startAutoBtn.addEventListener('click', () => startMonitoring());
     elements.stopAutoBtn.addEventListener('click', () => stopMonitoring());
+    elements.productionWidget.addEventListener('click', () => setCompactMode(false));
+    elements.compactModeBtn.addEventListener('click', () => setCompactMode(true));
 
     renderSettingsTable();
+    setProductionIndicator('stopped', 'idle', 'Мониторинг выключен');
+    if (isEmbeddedMode()) {
+        setCompactMode(true);
+    }
     initPlugin();
-    addAutoLog("Приложение запущено. Версия: 1.1.0");
+    addAutoLog("Приложение запущено. Версия: 1.2.0");
     restoreMonitoringState();
 });
 
@@ -141,10 +151,12 @@ async function pollQueue() {
     if (!cloudSettings.apiUrl) {
         addAutoLog("Ошибка: Не настроен Gateway URL", "error");
         stopMonitoring(false);
+        setProductionIndicator('error', 'idle', 'Ошибка: не настроен Gateway URL');
         return;
     }
 
     try {
+        setProductionIndicator('active', 'receiving', 'Получение сообщений');
         const response = await fetch(cloudSettings.apiUrl, {
             method: 'POST',
             headers: {
@@ -177,13 +189,20 @@ async function pollQueue() {
 
         const data = await response.json();
         const messages = data.Messages || [];
+        let hasProcessingError = false;
 
         if (messages.length > 0) {
             addAutoLog(`Получено сообщений: ${messages.length}`);
-            await Promise.all(messages.map(msg => processCloudMessage(msg)));
+            setProductionIndicator('active', 'signing', `Обработка сообщений: ${messages.length}`);
+            const results = await Promise.all(messages.map(msg => processCloudMessage(msg)));
+            hasProcessingError = results.includes(false);
+        }
+        if (isMonitoring && !hasProcessingError) {
+            setProductionIndicator('active', 'idle', 'Мониторинг включен');
         }
     } catch (e) {
         addAutoLog(`Ошибка при опросе очереди: ${e.message}`, "error");
+        setProductionIndicator('error', 'idle', `Ошибка мониторинга: ${e.message}`);
     } finally {
         if (isMonitoring) {
             autoTimeoutId = setTimeout(pollQueue, CONFIG.interval);
@@ -197,12 +216,14 @@ async function processCloudMessage(msg) {
         body = JSON.parse(msg.Body);
     } catch (e) {
         addAutoLog(`Ошибка парсинга тела сообщения ${msg.MessageId}`, "error");
-        return;
+        setProductionIndicator('error', 'idle', 'Ошибка разбора сообщения');
+        return false;
     }
 
     const s3Links = msg.S3Links || body.S3Links;
     if (!s3Links) {
-        return;
+        setProductionIndicator('error', 'idle', 'В сообщении отсутствуют ссылки S3');
+        return false;
     }
 
     const sigKey = s3Links.sigKey;
@@ -214,7 +235,8 @@ async function processCloudMessage(msg) {
             addAutoLog(`Не удалось извлечь ИНН из sigKey: ${sigKey}`, "error");
             skippedKeys.add(sigKey);
         }
-        return;
+        setProductionIndicator('error', 'idle', 'Не удалось определить ИНН сообщения');
+        return false;
     }
 
     const inn = innMatch[1];
@@ -226,7 +248,7 @@ async function processCloudMessage(msg) {
             addAutoLog(`Объект ${sigKey} пропущен: ИНН ${inn} не настроен`, "error");
             skippedKeys.add(sigKey);
         }
-        return;
+        return true;
     }
 
     const originalName = sigKey.replace(/\.sig$/, '');
@@ -244,7 +266,7 @@ async function processCloudMessage(msg) {
                 addAutoLog(`WARNING: Ошибка обработки ${sigKey}: Ошибка скачивания: ${status}`, "warning");
                 await deleteCloudMessage(msg.ReceiptHandle);
                 skippedKeys.delete(sigKey);
-                return;
+                return true;
             }
             throw new Error(`Ошибка скачивания: ${status}`);
         }
@@ -266,12 +288,15 @@ async function processCloudMessage(msg) {
 
         await deleteCloudMessage(msg.ReceiptHandle);
         skippedKeys.delete(sigKey);
+        return true;
 
     } catch (e) {
+        setProductionIndicator('error', 'idle', `Ошибка подписи: ${e.message}`);
         if (!skippedKeys.has(sigKey)) {
             addAutoLog(`Ошибка обработки ${sigKey}: ${e.message}`, "error");
             skippedKeys.add(sigKey);
         }
+        return false;
     }
 }
 
@@ -301,6 +326,7 @@ async function deleteCloudMessage(receiptHandle) {
 async function initPlugin() {
     if (typeof cadesplugin === 'undefined') {
         addAutoLog("КриптоПро плагин не найден (cadesplugin_api.js)", "error");
+        setProductionIndicator('error', 'idle', 'КриптоПро плагин не найден');
         return;
     }
     cadesplugin.then(async () => {
@@ -320,11 +346,16 @@ async function initPlugin() {
             }
             await oStore.Close();
             addAutoLog("Плагин готов. Сертификатов: " + certCache.length);
+            if (!isMonitoring) {
+                setProductionIndicator('stopped', 'idle', 'Мониторинг выключен');
+            }
         } catch (err) {
             addAutoLog("Ошибка плагина: " + err, "error");
+            setProductionIndicator('error', 'idle', `Ошибка КриптоПро: ${err}`);
         }
     }, (err) => {
         addAutoLog("Ошибка загрузки плагина: " + err, "error");
+        setProductionIndicator('error', 'idle', `Ошибка загрузки КриптоПро: ${err}`);
     });
 }
 
@@ -373,6 +404,35 @@ function addAutoLog(text, type = "info") {
     console.log(text);
 }
 
+function isEmbeddedMode() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('mode') === 'embedded' || params.get('mode') === 'production' || params.get('embedded') === '1';
+}
+
+function setCompactMode(compact) {
+    document.body.classList.toggle('production-compact', compact);
+    elements.productionWidget.setAttribute('aria-expanded', String(!compact));
+    notifyParentLayout(compact);
+}
+
+function notifyParentLayout(compact) {
+    if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') {
+        window.parent.postMessage({
+            type: EMBEDDED_LAYOUT_MESSAGE,
+            compact,
+            width: compact ? 72 : 760,
+            height: compact ? 72 : 900
+        }, '*');
+    }
+}
+
+function setProductionIndicator(status, activity, text) {
+    elements.productionWidget.dataset.status = status;
+    elements.productionWidget.dataset.activity = activity;
+    elements.productionWidget.title = text;
+    elements.productionStatusText.textContent = text;
+}
+
 function restoreMonitoringState() {
     if (localStorage.getItem(MONITORING_STATE_KEY) === 'true') {
         addAutoLog("Восстановлен последний статус: мониторинг включен");
@@ -391,6 +451,7 @@ function startMonitoring(rememberUserChoice = true) {
     elements.autoStatus.textContent = "Мониторинг облака активен";
 
     isMonitoring = true;
+    setProductionIndicator('active', 'idle', 'Мониторинг включен');
     if (rememberUserChoice) {
         localStorage.setItem(MONITORING_STATE_KEY, 'true');
     }
@@ -410,4 +471,5 @@ function stopMonitoring(rememberUserChoice = true) {
     elements.stopAutoBtn.disabled = true;
     elements.autoStatus.className = "status info";
     elements.autoStatus.textContent = "Мониторинг остановлен";
+    setProductionIndicator('stopped', 'idle', 'Мониторинг выключен');
 }
