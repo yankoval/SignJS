@@ -9,6 +9,8 @@ let cloudSettings = {
 };
 let certCache = [];
 
+const MONITORING_STATE_KEY = 'signjs_cloud_monitoring_enabled';
+
 const CONFIG = {
     attached: /\.txt$/,
     detached: /\.json$/,
@@ -32,12 +34,13 @@ window.addEventListener('load', () => {
     elements.apiUrl.value = cloudSettings.apiUrl;
     elements.apiKey.value = cloudSettings.apiKey;
 
-    elements.startAutoBtn.addEventListener('click', startMonitoring);
-    elements.stopAutoBtn.addEventListener('click', stopMonitoring);
+    elements.startAutoBtn.addEventListener('click', () => startMonitoring());
+    elements.stopAutoBtn.addEventListener('click', () => stopMonitoring());
 
     renderSettingsTable();
     initPlugin();
-    addAutoLog("Приложение запущено. Версия: 1.0.2 (Fix 404/403)");
+    addAutoLog("Приложение запущено. Версия: 1.1.0");
+    restoreMonitoringState();
 });
 
 // --- SETTINGS ---
@@ -137,7 +140,7 @@ async function pollQueue() {
 
     if (!cloudSettings.apiUrl) {
         addAutoLog("Ошибка: Не настроен Gateway URL", "error");
-        stopMonitoring();
+        stopMonitoring(false);
         return;
     }
 
@@ -370,7 +373,14 @@ function addAutoLog(text, type = "info") {
     console.log(text);
 }
 
-function startMonitoring() {
+function restoreMonitoringState() {
+    if (localStorage.getItem(MONITORING_STATE_KEY) === 'true') {
+        addAutoLog("Восстановлен последний статус: мониторинг включен");
+        startMonitoring(false);
+    }
+}
+
+function startMonitoring(rememberUserChoice = true) {
     if (!cloudSettings.apiUrl) {
         alert("Настройте API Gateway URL");
         return;
@@ -381,14 +391,20 @@ function startMonitoring() {
     elements.autoStatus.textContent = "Мониторинг облака активен";
 
     isMonitoring = true;
+    if (rememberUserChoice) {
+        localStorage.setItem(MONITORING_STATE_KEY, 'true');
+    }
     pollQueue();
 }
 
-function stopMonitoring() {
+function stopMonitoring(rememberUserChoice = true) {
     isMonitoring = false;
     if (autoTimeoutId) {
         clearTimeout(autoTimeoutId);
         autoTimeoutId = null;
+    }
+    if (rememberUserChoice) {
+        localStorage.setItem(MONITORING_STATE_KEY, 'false');
     }
     elements.startAutoBtn.disabled = false;
     elements.stopAutoBtn.disabled = true;
