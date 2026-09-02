@@ -1,0 +1,9 @@
+{
+  "name": "signjs",
+  "version": "1.1.0",
+  "private": true,
+  "scripts": {
+    "check": "node --check CloudSignApp.js && node --check SignJsApp.js",
+    "test": "node --test tests/*.test.js"
+  }
+}
