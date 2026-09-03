@@ -2,23 +2,30 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SignJS Cloud — Автоматизация Yandex Cloud</title>
-    <link rel="stylesheet" href="style.css?v=1.2.1">
+    <link rel="stylesheet" href="style.css?v=1.3.0">
 </head>
 <body>
 
 <button id="productionWidget" class="production-widget" type="button" aria-expanded="false" aria-controls="fullInterface" title="Мониторинг выключен">
-    <span class="production-widget-ring" aria-hidden="true"></span>
-    <svg class="production-widget-icon" viewBox="0 0 64 64" aria-hidden="true">
-        <path class="production-widget-paper" d="M10 7h31l8 8v40H10Z"></path>
-        <path class="production-widget-paper-fold" d="M41 7v9h8"></path>
-        <path class="production-widget-copy" d="M18 24h18M18 31h14"></path>
-        <path class="production-widget-signature" d="M17 43c5-7 7 5 12-2 3-4 4 5 10 0"></path>
-        <g class="production-widget-quill">
-            <path class="production-widget-feather" d="M55 6C43 7 33 14 27 29c5-4 10-5 15-5-4 2-7 5-10 9 8-3 15-11 23-27Z"></path>
-            <path d="M52 9 28 39"></path>
+    <svg class="production-widget-icon" viewBox="0 0 100 100" width="56" height="56" fill="none" stroke="#252923" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path class="production-widget-paper" d="M11 65Q37 70 78 62L83 86Q47 81 16 90L9 85Z"></path>
+        <path class="production-widget-copy" d="m13 86 4 1q32-8 63-3M19 89q30-7 58-3"></path>
+        <path class="production-widget-signature" pathLength="100" d="M39 79q10-10 7-2t11-2q-2 7 9 0"></path>
+        <g class="production-widget-inkwell">
+            <path d="m75 53-1 16c0 6 20 6 20 0l-1-16"></path>
+            <ellipse cx="84" cy="53" rx="9" ry="3"></ellipse>
+            <path d="M75 59q9 4 18 0m-18 5q9 4 18 0m-17 5q8 3 16 0"></path>
         </g>
-        <path class="production-widget-hand" d="M8 51c5-5 10-6 15-3l5-4c2-2 5 1 3 3l-4 4h9c4 0 6 2 8 5H8Z"></path>
+        <g class="production-widget-quill">
+            <path class="production-widget-feather" d="M23 7C23 27 26 40 45 54l9 23-5-29C49 34 37 17 23 7Z"></path>
+            <path d="M25 11q19 32 29 66m-3-9 3 9-4-3"></path>
+            <path class="production-widget-hatching" d="m25 16 9 11m-8-5 11 11m-10-5 13 11m-12-4 15 11m-11-4 12 9m-11-27 1 6m3-2 1 8m3-3 1 9m3-2 1 8"></path>
+        </g>
+        <path class="production-widget-hand" d="m12 52 13 5q-1-12 5-13 5-2 10 5l10 4q8 5 8 10l-3 6q-1 8-9 8l-16-7-14-4Z"></path>
+        <path d="M29 47q-2 5 4 9l12 7q8 4 10 0M27 55q-2 6 5 9l13 6q7 3 9-1M28 64q0 4 6 7l12 5M39 51q-4 0-3 4l11 6q4 3 6 0m-5-6q-4-1-3 3l5 3"></path>
+        <path class="production-widget-hatching" d="m14 55 4 9m-1-8 4 9m10 1 1 4m4-2 1 5m4-3 1 4"></path>
     </svg>
     <span id="productionStatusText" class="visually-hidden">Мониторинг выключен</span>
 </button>
@@ -83,6 +90,6 @@
 </main>
 
 <script src="cadesplugin_api.js"></script>
-<script src="CloudSignApp.js?v=1.2.1"></script>
+<script src="CloudSignApp.js?v=1.3.0"></script>
 </body>
 </html>

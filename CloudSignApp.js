@@ -8,9 +8,23 @@ let cloudSettings = {
     apiKey: localStorage.getItem('ymq_api_key') || ''
 };
 let certCache = [];
+let monitoringRequested = false;
+let isLeader = false;
+let pollInFlight = false;
+let pluginReady = false;
+let localPluginError = '';
+let coordinationChannel = null;
+let leadershipRequest = null;
+let leadershipAbort = null;
+let releaseLeadership = null;
+let pageActive = true;
+let indicatorState = { status: 'stopped', activity: 'idle', text: 'Мониторинг выключен' };
 
 const MONITORING_STATE_KEY = 'signjs_cloud_monitoring_enabled';
 const EMBEDDED_LAYOUT_MESSAGE = 'signjs:layout';
+// Same scope as the existing localStorage settings: one signer per origin/storage partition.
+const LEADER_LOCK_NAME = 'signjs-cloud-monitor';
+const CHANNEL_NAME = 'signjs-cloud-monitor-state';
 
 const CONFIG = {
     attached: /\.txt$/,
@@ -48,14 +62,16 @@ window.addEventListener('load', () => {
     if (isEmbeddedMode()) {
         setCompactMode(true);
     }
+    initTabCoordination();
     initPlugin();
-    addAutoLog("Приложение запущено. Версия: 1.2.1");
+    addAutoLog("Приложение запущено. Версия: 1.3.0");
     restoreMonitoringState();
 });
 
 // --- SETTINGS ---
 
 function saveApiSettings() {
+    if (!canEditSettings()) return;
     cloudSettings.apiUrl = elements.apiUrl.value.trim();
     cloudSettings.apiKey = elements.apiKey.value.trim();
     localStorage.setItem('ymq_gw_url', cloudSettings.apiUrl);
@@ -76,6 +92,7 @@ function renderSettingsTable() {
 }
 
 function deleteMapping(inn) {
+    if (!canEditSettings()) return;
     delete innMap[inn];
     saveSettings();
 }
@@ -96,10 +113,12 @@ function exportSettings() {
 }
 
 function importSettings(input) {
+    if (!canEditSettings()) return;
     const file = input.files[0];
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
+            if (!canEditSettings()) return;
             const imported = JSON.parse(e.target.result);
             innMap = { ...innMap, ...imported };
             saveSettings();
@@ -130,6 +149,7 @@ function showWizard(inn) {
 }
 
 function applyWizard(inn) {
+    if (!canEditSettings()) return;
     const thumb = document.getElementById(`select-${inn}`).value;
     innMap[inn] = thumb;
     saveSettings();
@@ -146,7 +166,7 @@ function applyWizard(inn) {
 // --- CLOUD MONITORING ---
 
 async function pollQueue() {
-    if (!isMonitoring) return;
+    if (!isMonitoring || !isLeader || pollInFlight) return;
 
     if (!cloudSettings.apiUrl) {
         addAutoLog("Ошибка: Не настроен Gateway URL", "error");
@@ -155,6 +175,7 @@ async function pollQueue() {
         return;
     }
 
+    pollInFlight = true;
     try {
         setProductionIndicator('active', 'receiving', 'Получение сообщений');
         const response = await fetch(cloudSettings.apiUrl, {
@@ -188,14 +209,21 @@ async function pollQueue() {
         }
 
         const data = await response.json();
+        // A stop during ReceiveMessage leaves the batch for redelivery without signing it.
+        if (!isMonitoring) return;
         const messages = data.Messages || [];
         let hasProcessingError = false;
 
         if (messages.length > 0) {
             addAutoLog(`Получено сообщений: ${messages.length}`);
             setProductionIndicator('active', 'signing', `Обработка сообщений: ${messages.length}`);
-            const results = await Promise.all(messages.map(msg => processCloudMessage(msg)));
-            hasProcessingError = results.includes(false);
+            // A malformed message must not let us release the lock while sibling tasks still sign.
+            const results = await Promise.allSettled(messages.map(msg => processCloudMessage(msg)));
+            hasProcessingError = results.some(result => result.status === 'rejected' || result.value === false);
+            if (results.some(result => result.status === 'rejected')) {
+                addAutoLog('Ошибка структуры сообщения в полученной партии', 'error');
+                setProductionIndicator('error', 'idle', 'Ошибка структуры сообщения');
+            }
         }
         if (isMonitoring && !hasProcessingError) {
             setProductionIndicator('active', 'idle', 'Мониторинг включен');
@@ -204,8 +232,12 @@ async function pollQueue() {
         addAutoLog(`Ошибка при опросе очереди: ${e.message}`, "error");
         setProductionIndicator('error', 'idle', `Ошибка мониторинга: ${e.message}`);
     } finally {
+        pollInFlight = false;
         if (isMonitoring) {
             autoTimeoutId = setTimeout(pollQueue, CONFIG.interval);
+        } else {
+            if (!monitoringRequested && pageActive) elements.autoStatus.textContent = 'Мониторинг остановлен';
+            releaseLeadership?.();
         }
     }
 }
@@ -326,7 +358,7 @@ async function deleteCloudMessage(receiptHandle) {
 async function initPlugin() {
     if (typeof cadesplugin === 'undefined') {
         addAutoLog("КриптоПро плагин не найден (cadesplugin_api.js)", "error");
-        setProductionIndicator('error', 'idle', 'КриптоПро плагин не найден');
+        showLocalPluginError('КриптоПро плагин не найден');
         return;
     }
     cadesplugin.then(async () => {
@@ -345,17 +377,20 @@ async function initPlugin() {
                 });
             }
             await oStore.Close();
+            pluginReady = true;
             addAutoLog("Плагин готов. Сертификатов: " + certCache.length);
-            if (!isMonitoring) {
+            if (monitoringRequested) {
+                requestLeadership();
+            } else if (!isMonitoring && indicatorState.status !== 'error') {
                 setProductionIndicator('stopped', 'idle', 'Мониторинг выключен');
             }
         } catch (err) {
             addAutoLog("Ошибка плагина: " + err, "error");
-            setProductionIndicator('error', 'idle', `Ошибка КриптоПро: ${err}`);
+            showLocalPluginError(`Ошибка КриптоПро: ${err}`);
         }
     }, (err) => {
         addAutoLog("Ошибка загрузки плагина: " + err, "error");
-        setProductionIndicator('error', 'idle', `Ошибка загрузки КриптоПро: ${err}`);
+        showLocalPluginError(`Ошибка загрузки КриптоПро: ${err}`);
     });
 }
 
@@ -427,49 +462,189 @@ function notifyParentLayout(compact) {
 }
 
 function setProductionIndicator(status, activity, text) {
+    // In-flight operations may finish after Stop; do not turn the stopped UI green/red again.
+    if (pollInFlight && !isMonitoring) return;
+    indicatorState = { status, activity, text };
     elements.productionWidget.dataset.status = status;
     elements.productionWidget.dataset.activity = activity;
     elements.productionWidget.title = text;
     elements.productionStatusText.textContent = text;
+    if (isLeader) broadcastLeaderState();
+}
+
+function initTabCoordination() {
+    if (typeof BroadcastChannel !== 'undefined') {
+        try {
+            coordinationChannel = new BroadcastChannel(CHANNEL_NAME);
+            coordinationChannel.onmessage = ({ data }) => {
+                if (!pageActive || !data) return;
+                if (data.type === 'control') syncMonitoringChoice();
+                if (data.type === 'hello' && isLeader) broadcastLeaderState();
+                if (data.type === 'state' && !isLeader && monitoringRequested &&
+                    localStorage.getItem(MONITORING_STATE_KEY) === 'true' &&
+                    ['active', 'error'].includes(data.status) &&
+                    ['idle', 'receiving', 'signing'].includes(data.activity)) {
+                    elements.autoStatus.textContent = 'Режим наблюдения — обработчик работает в другой вкладке';
+                    elements.productionWidget.dataset.role = 'observer';
+                    const text = data.status === 'error' ? 'Ошибка в ведущей вкладке' :
+                        data.activity === 'signing' ? 'Подписание в ведущей вкладке' :
+                        data.activity === 'receiving' ? 'Получение сообщений в ведущей вкладке' :
+                        'Мониторинг включён в другой вкладке';
+                    setProductionIndicator(data.status, data.activity, text);
+                }
+            };
+        } catch (error) {
+            addAutoLog(`Недоступна связь между вкладками: ${error.message}`, 'error');
+        }
+    }
+    window.addEventListener('storage', event => {
+        if (!pageActive) return;
+        if (event.key === MONITORING_STATE_KEY || event.key === null) syncMonitoringChoice();
+        if (!isMonitoring && !pollInFlight) reloadSharedSettings();
+    });
+    window.addEventListener('pagehide', () => {
+        pageActive = false;
+        stopMonitoring(false);
+    });
+    window.addEventListener('pageshow', event => {
+        if (event.persisted) {
+            pageActive = true;
+            syncMonitoringChoice();
+        }
+    });
+}
+
+function reloadSharedSettings() {
+    cloudSettings = {
+        apiUrl: localStorage.getItem('ymq_gw_url') || '',
+        apiKey: localStorage.getItem('ymq_api_key') || ''
+    };
+    innMap = JSON.parse(localStorage.getItem('innMap')) || {};
+    elements.apiUrl.value = cloudSettings.apiUrl;
+    elements.apiKey.value = cloudSettings.apiKey;
+    renderSettingsTable();
+}
+
+function syncMonitoringChoice() {
+    if (localStorage.getItem(MONITORING_STATE_KEY) === 'true') startMonitoring(false);
+    else stopMonitoring(false);
 }
 
 function restoreMonitoringState() {
-    if (localStorage.getItem(MONITORING_STATE_KEY) === 'true') {
-        addAutoLog("Восстановлен последний статус: мониторинг включен");
-        startMonitoring(false);
+    if (localStorage.getItem(MONITORING_STATE_KEY) === 'true') startMonitoring(false);
+}
+
+function showLocalPluginError(text) {
+    localPluginError = text;
+    // A follower's missing plugin must not replace the leader's healthy status.
+    if (elements.productionWidget.dataset.role !== 'observer') {
+        setProductionIndicator('error', 'idle', text);
     }
+}
+
+function canEditSettings() {
+    if (localStorage.getItem(MONITORING_STATE_KEY) === 'true' || pollInFlight) {
+        alert('Остановите мониторинг перед изменением настроек');
+        return false;
+    }
+    // Merge edits with the latest shared configuration, not a stale per-tab copy.
+    innMap = JSON.parse(localStorage.getItem('innMap')) || {};
+    return true;
+}
+
+function broadcastLeaderState() {
+    // Never broadcast credentials, receipt handles, document names, or raw error details.
+    coordinationChannel?.postMessage({ type: 'state', status: indicatorState.status, activity: indicatorState.activity });
+}
+
+function requestLeadership() {
+    if (!monitoringRequested || !pluginReady || leadershipRequest || !pageActive) return;
+    leadershipAbort = new AbortController();
+    leadershipRequest = Promise.resolve().then(() => navigator.locks.request(
+        LEADER_LOCK_NAME, { mode: 'exclusive', signal: leadershipAbort.signal }, async () => {
+            if (!monitoringRequested || !pageActive) return;
+            if (localStorage.getItem(MONITORING_STATE_KEY) !== 'true') {
+                stopMonitoring(false);
+                return;
+            }
+            reloadSharedSettings();
+            isLeader = true;
+            isMonitoring = true;
+            elements.productionWidget.dataset.role = 'leader';
+            elements.autoStatus.textContent = 'Мониторинг облака активен — ведущая вкладка';
+            const held = new Promise(resolve => { releaseLeadership = resolve; });
+            try {
+                setProductionIndicator('active', 'idle', 'Мониторинг включён — ведущая вкладка');
+                pollQueue();
+                // Keep the lock until Stop AND completion of the current batch, including PUT/Delete.
+                await held;
+            } finally {
+                isLeader = false;
+                releaseLeadership = null;
+            }
+        }
+    )).catch(error => {
+        if (error.name !== 'AbortError') {
+            stopMonitoring(false);
+            setProductionIndicator('error', 'idle', `Ошибка блокировки вкладки: ${error.message}`);
+        }
+    }).finally(() => {
+        leadershipRequest = null;
+        leadershipAbort = null;
+        if (monitoringRequested && pageActive) requestLeadership();
+    });
 }
 
 function startMonitoring(rememberUserChoice = true) {
+    if (!pageActive || monitoringRequested) return;
+    if (!pollInFlight) reloadSharedSettings();
     if (!cloudSettings.apiUrl) {
-        alert("Настройте API Gateway URL");
+        alert('Настройте API Gateway URL');
         return;
     }
-    elements.startAutoBtn.disabled = true;
-    elements.stopAutoBtn.disabled = false;
-    elements.autoStatus.className = "status success";
-    elements.autoStatus.textContent = "Мониторинг облака активен";
-
-    isMonitoring = true;
-    setProductionIndicator('active', 'idle', 'Мониторинг включен');
+    if (typeof navigator === 'undefined' || !navigator.locks || !coordinationChannel) {
+        setProductionIndicator('error', 'idle', 'Для безопасной работы нужны HTTPS, Web Locks и BroadcastChannel');
+        elements.autoStatus.textContent = 'Мониторинг заблокирован: недоступна координация вкладок';
+        return;
+    }
     if (rememberUserChoice) {
         localStorage.setItem(MONITORING_STATE_KEY, 'true');
+        coordinationChannel.postMessage({ type: 'control' });
     }
-    pollQueue();
+    monitoringRequested = true;
+    elements.startAutoBtn.disabled = true;
+    elements.stopAutoBtn.disabled = false;
+    elements.autoStatus.className = 'status info';
+    elements.autoStatus.textContent = 'Ожидание ведущей вкладки / готовности КриптоПро';
+    elements.productionWidget.dataset.role = 'waiting';
+    setProductionIndicator('stopped', 'idle', 'Ожидание ведущей вкладки / готовности КриптоПро');
+    if (localPluginError) showLocalPluginError(localPluginError);
+    coordinationChannel.postMessage({ type: 'hello' });
+    requestLeadership();
 }
 
 function stopMonitoring(rememberUserChoice = true) {
+    monitoringRequested = false;
     isMonitoring = false;
+    leadershipAbort?.abort();
     if (autoTimeoutId) {
         clearTimeout(autoTimeoutId);
         autoTimeoutId = null;
     }
     if (rememberUserChoice) {
         localStorage.setItem(MONITORING_STATE_KEY, 'false');
+        coordinationChannel?.postMessage({ type: 'control' });
     }
     elements.startAutoBtn.disabled = false;
     elements.stopAutoBtn.disabled = true;
     elements.autoStatus.className = "status info";
-    elements.autoStatus.textContent = "Мониторинг остановлен";
-    setProductionIndicator('stopped', 'idle', 'Мониторинг выключен');
+    elements.autoStatus.textContent = pollInFlight ? 'Остановка — завершение текущей операции' : 'Мониторинг остановлен';
+    elements.productionWidget.dataset.role = 'stopped';
+    // Set the stopped state directly while the leader drains its in-flight batch.
+    indicatorState = { status: 'stopped', activity: 'idle', text: 'Мониторинг выключен' };
+    elements.productionWidget.dataset.status = 'stopped';
+    elements.productionWidget.dataset.activity = 'idle';
+    elements.productionWidget.title = indicatorState.text;
+    elements.productionStatusText.textContent = indicatorState.text;
+    if (!pollInFlight) releaseLeadership?.();
 }

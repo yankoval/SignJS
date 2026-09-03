@@ -29,56 +29,49 @@ th { background-color: #f8f9fa; }
 .compact-mode-button { display: inline-flex; align-items: center; gap: 6px; width: auto; padding: 8px 13px; border-radius: 18px; font-size: 12px; }
 .compact-mode-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .production-widget {
-    --widget-color: #9aa0a6;
+    --widget-color: #f1f0e9;
+    --widget-border: #9aa0a6;
     position: relative;
     display: none;
     align-items: center;
     justify-content: center;
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
     padding: 0;
-    border: 0;
+    border: 2px solid var(--widget-border);
     border-radius: 50%;
-    color: #fff;
+    color: #252923;
     background: var(--widget-color);
-    box-shadow: 0 5px 16px rgba(32, 33, 36, 0.28);
+    box-shadow: 0 2px 4px rgba(32, 33, 36, 0.18);
     cursor: pointer;
     isolation: isolate;
 }
-.production-widget[data-status="active"] { --widget-color: #1e8e3e; }
-.production-widget[data-status="error"] { --widget-color: #d93025; }
+.production-widget[data-status="active"] { --widget-color: #edf6eb; --widget-border: #1e8e3e; }
+.production-widget[data-status="error"] { --widget-color: #fce1de; --widget-border: #d93025; }
 .production-widget:focus-visible { outline: 3px solid #8ab4f8; outline-offset: 3px; }
 .production-widget-icon {
-    width: 38px;
-    height: 38px;
+    width: 56px;
+    height: 56px;
     fill: none;
     stroke: currentColor;
-    stroke-width: 2.5;
+    stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
 }
-.production-widget-paper { fill: rgba(255, 255, 255, 0.14); }
-.production-widget-feather { fill: rgba(255, 255, 255, 0.3); }
-.production-widget-copy { stroke-width: 2; opacity: 0.75; }
-.production-widget-hand { fill: rgba(255, 255, 255, 0.32); }
-.production-widget-quill { transform-box: fill-box; transform-origin: 20% 85%; }
-.production-widget-ring {
-    position: absolute;
-    inset: -5px;
-    z-index: -1;
-    border: 3px solid var(--widget-color);
-    border-radius: 50%;
-    opacity: 0;
+.production-widget-paper, .production-widget-hand, .production-widget-feather { fill: #fffdf4; }
+.production-widget-copy, .production-widget-hatching { stroke-width: 1; }
+.production-widget-inkwell { fill: #fffdf4; }
+.production-widget-inkwell ellipse { fill: #252923; }
+.production-widget-quill { transform-box: view-box; transform-origin: 54px 77px; }
+.production-widget[data-status="active"][data-activity="receiving"] .production-widget-quill {
+    animation: signjs-receiving 1.2s ease-in-out infinite alternate;
 }
-.production-widget[data-activity="receiving"] .production-widget-ring {
-    animation: signjs-receiving 1.1s ease-out infinite;
-}
-.production-widget[data-activity="signing"] .production-widget-quill {
+.production-widget[data-status="active"][data-activity="signing"] .production-widget-quill {
     animation: signjs-quill 0.65s ease-in-out infinite alternate;
 }
-.production-widget[data-activity="signing"] .production-widget-signature {
-    stroke-dasharray: 10;
-    animation: signjs-signature 0.9s linear infinite;
+.production-widget[data-status="active"][data-activity="signing"] .production-widget-signature {
+    stroke-dasharray: 100;
+    animation: signjs-signature 1.3s ease-in-out infinite;
 }
 .visually-hidden {
     position: absolute;
@@ -104,22 +97,21 @@ body.production-compact #fullInterface { display: none; }
 body.production-compact .production-widget { display: inline-flex; }
 
 @keyframes signjs-receiving {
-    0% { transform: scale(0.82); opacity: 0.8; }
-    100% { transform: scale(1.2); opacity: 0; }
+    from { transform: rotate(-2deg); }
+    to { transform: rotate(2deg); }
 }
 
 @keyframes signjs-quill {
-    from { transform: rotate(-4deg) translate(-1px, 1px); }
-    to { transform: rotate(5deg) translate(2px, -1px); }
+    from { transform: rotate(-7deg); }
+    to { transform: rotate(6deg); }
 }
 
 @keyframes signjs-signature {
-    from { stroke-dashoffset: 10; }
-    to { stroke-dashoffset: 0; }
+    0% { stroke-dashoffset: 100; }
+    80%, 100% { stroke-dashoffset: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .production-widget-ring,
     .production-widget-quill,
     .production-widget-signature { animation: none !important; }
 }
